@@ -3,1240 +3,525 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IMSB 校園廣播控制台</title>
+    <title>IMSB 電視接收端</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
     <style>
-        * {
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+        }
+        .layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: none;
+            z-index: 10;
+            object-fit: contain;
+        }
+        #standby-screen { background: #000; z-index: 5; display: flex; }
+        #office-notice-layer {
+            background: url('學務處通知 (1).jpg') no-repeat center center;
+            background-size: contain;
+            z-index: 1000;
+        }
+        #pure-text-layer {
+            z-index: 110;
+            background: #ffffff;
+            color: #000000;
+            padding: 20px;
+            overflow-y: auto;
+            display: none;
+            justify-content: flex-start;
+            align-items: flex-start;
+            text-align: left;
+            line-height: 1.4;
+            font-weight: bold;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+            box-sizing: border-box;
+            font-size: 4rem;
+        }
+        #pure-text-layer>* {
+            font-weight: bold;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
-            background: #f0f4f9;
-            color: #1e293b;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        #login-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(8px);
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .login-card {
-            background: #ffffff;
-            padding: 40px 35px;
-            border-radius: 32px;
-            width: 380px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-        .login-card h2 {
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 10px;
-            color: #0f172a;
-        }
-        .login-card p {
-            color: #64748b;
-            margin-bottom: 25px;
-        }
-        .login-card label {
             display: block;
-            font-weight: 600;
-            margin: 12px 0 4px;
-            color: #334155;
-        }
-        .login-card input {
             width: 100%;
-            padding: 12px 16px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 14px;
-            font-size: 16px;
-            background: #f8fafc;
-            transition: 0.2s;
         }
-        .login-card input:focus {
-            border-color: #3b82f6;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-        }
-        .login-card button {
+        #marquee {
+            position: absolute;
+            top: 30px;
+            left: 0;
             width: 100%;
-            padding: 14px;
-            border: none;
-            border-radius: 40px;
-            font-weight: 700;
-            font-size: 18px;
-            color: white;
-            background: linear-gradient(145deg, #2563eb, #1d4ed8);
-            cursor: pointer;
-            margin-top: 20px;
-            transition: 0.2s;
-            box-shadow: 0 8px 24px rgba(37, 99, 235, 0.3);
-        }
-        .login-card button:hover {
-            transform: scale(1.02);
-        }
-        .login-card .error {
-            color: #dc2626;
-            font-size: 14px;
-            margin-top: 8px;
-            display: none;
-        }
-        #app {
-            display: none;
-            width: 100%;
-            max-width: 1400px;
-            background: #ffffff;
-            border-radius: 32px;
-            padding: 24px 28px;
-            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.06);
-        }
-        .app-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #f1f5f9;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .app-header h1 {
-            font-size: 26px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #2563eb, #8b5cf6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .app-header .user-info {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-        .app-header .user-info span {
-            font-weight: 600;
-            color: #334155;
-        }
-        .app-header .user-info button {
-            padding: 8px 20px;
-            border: none;
-            border-radius: 40px;
-            background: #f1f5f9;
-            color: #475569;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        .app-header .user-info button:hover {
-            background: #e2e8f0;
-        }
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 28px;
-        }
-        @media (max-width: 900px) {
-            .main-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        .card {
-            background: #fafcff;
-            border-radius: 20px;
-            padding: 20px 22px;
-            border: 1px solid #eef2f6;
-            margin-bottom: 20px;
-        }
-        .card-title {
-            font-weight: 700;
-            font-size: 16px;
-            color: #475569;
-            margin-bottom: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .form-group {
-            margin-bottom: 14px;
-        }
-        .form-group label {
-            display: block;
-            font-weight: 600;
-            font-size: 13px;
-            color: #64748b;
-            margin-bottom: 4px;
-        }
-        .form-group .row {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .form-group .row>* {
-            flex: 1;
-            min-width: 80px;
-        }
-        input,
-        select,
-        textarea {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 14px;
-            font-size: 14px;
-            background: #ffffff;
-            transition: 0.2s;
-            font-family: inherit;
-        }
-        input:focus,
-        select:focus,
-        textarea:focus {
-            border-color: #3b82f6;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-        }
-        textarea {
-            resize: vertical;
-            min-height: 70px;
-        }
-        input[type="color"] {
-            padding: 4px;
-            height: 44px;
-            cursor: pointer;
-        }
-        .target-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin: 6px 0 10px;
-        }
-        .target-grid label {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            background: #f1f5f9;
-            padding: 6px 14px;
-            border-radius: 40px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            border: 2px solid transparent;
-            transition: 0.15s;
-        }
-        .target-grid label:hover {
-            background: #e2e8f0;
-        }
-        .target-grid input[type="checkbox"] {
-            display: none;
-        }
-        .target-grid label:has(input:checked) {
-            background: #dbeafe;
-            border-color: #3b82f6;
-            color: #1d4ed8;
-        }
-        .target-actions {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 6px;
-        }
-        .target-actions button {
-            background: none;
-            border: none;
-            color: #3b82f6;
-            font-weight: 600;
-            font-size: 13px;
-            cursor: pointer;
-            padding: 4px 10px;
-            border-radius: 30px;
-            background: #f1f5f9;
-        }
-        .media-upload {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .file-upload-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: #f8fafc;
-            padding: 8px 14px;
-            border-radius: 40px;
-            border: 1.5px dashed #cbd5e1;
-        }
-        .file-upload-wrapper input[type="file"] {
-            border: none;
-            padding: 6px 0;
-            background: transparent;
-            flex: 1;
-        }
-        .file-upload-wrapper .file-name {
-            font-size: 13px;
-            color: #64748b;
+            color: #facc15;
+            font-size: 4rem;
+            font-weight: 900;
+            z-index: 200;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
             white-space: nowrap;
             overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 150px;
-        }
-        .btn {
-            border: none;
-            padding: 12px 20px;
-            border-radius: 40px;
-            font-weight: 700;
-            font-size: 15px;
-            cursor: pointer;
-            transition: all 0.15s;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            color: white;
-        }
-        .btn:active {
-            transform: scale(0.97);
-            opacity: 0.85;
-        }
-        .btn-primary {
-            background: linear-gradient(145deg, #2563eb, #1d4ed8);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
-        }
-        .btn-success {
-            background: linear-gradient(145deg, #16a34a, #15803d);
-            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
-        }
-        .btn-danger {
-            background: linear-gradient(145deg, #dc2626, #b91c1c);
-            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
-        }
-        .btn-warning {
-            background: linear-gradient(145deg, #f59e0b, #d97706);
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
-        }
-        .btn-outline {
-            background: transparent;
-            border: 2px solid #e2e8f0;
-            color: #475569;
-        }
-        .btn-sm {
-            padding: 6px 16px;
-            font-size: 13px;
-        }
-        .btn-group {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
-        .btn-group .btn {
-            flex: 1;
-            min-width: 120px;
-        }
-        .schedule-row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        .schedule-row input[type="datetime-local"] {
-            flex: 2;
-            min-width: 180px;
-        }
-        .history-item {
-            background: #f8fafc;
-            border-radius: 16px;
-            padding: 14px;
-            margin-bottom: 12px;
-            border-left: 5px solid #3b82f6;
-            border: 1px solid #eef2f6;
-            border-left-width: 6px;
-        }
-        .history-item.closed {
-            border-left-color: #94a3b8;
-            opacity: 0.7;
-        }
-        .history-item .h-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-        .history-item .h-title {
-            font-weight: 700;
-            font-size: 16px;
-        }
-        .history-item .h-meta {
-            font-size: 12px;
-            color: #64748b;
-            margin: 4px 0;
-        }
-        .history-item .h-text {
-            font-size: 14px;
-            color: #334155;
-            background: #ffffff;
-            padding: 6px 12px;
-            border-radius: 10px;
-            margin: 6px 0 10px;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-        .history-item .h-targets {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            margin-bottom: 10px;
-        }
-        .history-item .h-targets span {
-            background: #e2e8f0;
-            padding: 2px 12px;
-            border-radius: 30px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .history-item .h-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .history-item .h-actions .btn {
-            flex: 1;
-            min-width: 60px;
-            padding: 4px 12px;
-            font-size: 12px;
-            border-radius: 30px;
-        }
-        .badge-status {
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 14px;
-            border-radius: 30px;
-            background: #dcfce7;
-            color: #15803d;
-        }
-        .badge-status.closed {
-            background: #f1f5f9;
-            color: #64748b;
-        }
-        .empty-history {
-            text-align: center;
-            color: #94a3b8;
-            padding: 30px 0;
-        }
-        #account-modal {
             display: none;
+            pointer-events: none;
+        }
+        .scroll-text {
+            display: inline-block;
+            padding-left: 100%;
+            animation: scrollMarquee 12s linear infinite;
+        }
+        @keyframes scrollMarquee {
+            from { transform: translateX(0); }
+            to { transform: translateX(-100%); }
+        }
+        #media-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10;
+            background: #000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        #media-container img,
+        #media-container video,
+        #media-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            object-fit: contain;
+        }
+        #media-container iframe { object-fit: fill; }
+        #schedule-timer {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            padding: 6px 18px;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            color: #f59e0b;
+            z-index: 200;
+            display: none;
+            border: 1px solid #f59e0b;
+        }
+        #setup-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-            z-index: 10000;
+            background: rgba(0,0,0,0.85);
+            z-index: 2000;
+            display: flex;
             align-items: center;
             justify-content: center;
+            backdrop-filter: blur(6px);
         }
-        #account-modal.show {
-            display: flex;
+        .setup-card {
+            background: #1e293b;
+            padding: 35px 30px;
+            border-radius: 28px;
+            text-align: center;
+            width: 340px;
+            border: 1px solid #334155;
         }
-        .account-modal-content {
-            background: #ffffff;
-            border-radius: 32px;
-            padding: 30px 35px;
-            max-width: 700px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        .setup-card h2 { font-size: 1.8rem; color: #f1f5f9; margin-bottom: 20px; }
+        .setup-card label { display: block; color: #94a3b8; margin: 12px 0 4px; }
+        .setup-card input, .setup-card select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #475569;
+            border-radius: 14px;
+            background: #0f172a;
+            color: #f1f5f9;
+            font-size: 1.1rem;
+            outline: none;
         }
-        .account-modal-content h2 {
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-        .account-section {
-            border-top: 1px solid #e2e8f0;
-            padding-top: 18px;
-            margin-top: 18px;
-        }
-        .account-section h3 {
-            font-size: 18px;
-            margin-bottom: 12px;
-            color: #334155;
-        }
-        .account-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f8fafc;
-            padding: 8px 14px;
-            border-radius: 12px;
-            margin-bottom: 6px;
-        }
-        .account-item .info {
-            font-weight: 500;
-        }
-        .account-item .del-btn {
-            background: none;
-            border: none;
-            color: #dc2626;
-            font-weight: 700;
-            cursor: pointer;
-            padding: 2px 10px;
-            border-radius: 30px;
-            background: #fee2e2;
-        }
-        .account-item .del-btn:hover {
-            background: #fecaca;
-        }
-        .add-form {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin: 12px 0;
-        }
-        .add-form input {
-            flex: 1;
-            min-width: 100px;
-            padding: 8px 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-        }
-        .add-form button {
-            padding: 8px 20px;
+        .setup-card input:focus { border-color: #3b82f6; }
+        .setup-card button {
+            width: 100%;
+            padding: 16px;
             border: none;
             border-radius: 40px;
             font-weight: 700;
-            background: #2563eb;
+            font-size: 1.2rem;
             color: white;
+            background: linear-gradient(145deg, #2563eb, #1d4ed8);
             cursor: pointer;
+            margin-top: 8px;
         }
-        .close-modal {
-            float: right;
-            background: none;
-            border: none;
-            font-size: 28px;
-            cursor: pointer;
-            color: #94a3b8;
-        }
-        .media-url-input {
-            margin-top: 6px;
-        }
-        .media-url-input input {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 14px;
-            font-size: 14px;
-            background: #ffffff;
-            transition: 0.2s;
-        }
-        .media-url-input input:focus {
-            border-color: #3b82f6;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-        }
-        .media-hint {
-            font-size: 12px;
-            color: #94a3b8;
-            margin-top: 4px;
+        .setup-card button:hover { transform: scale(1.02); }
+        @media (max-width: 768px) {
+            #pure-text-layer { font-size: 2.5rem; padding: 15px; }
+            #marquee { font-size: 2.5rem; top: 15px; }
         }
     </style>
 </head>
 <body>
-    <div id="login-overlay">
-        <div class="login-card">
-            <h2>🔐 登入</h2>
-            <p>IMSB 校園廣播控制系統</p>
-            <label>帳號</label>
-            <input type="text" id="loginUser" value="admin">
-            <label>密碼</label>
-            <input type="password" id="loginPass" value="admin">
-            <div class="error" id="loginError">帳號或密碼錯誤</div>
-            <button onclick="doLogin()">登入</button>
+    <div id="standby-screen" class="layer" style="display:flex;"></div>
+    <div id="office-notice-layer" class="layer"></div>
+    <div id="pure-text-layer" class="layer"></div>
+    <div id="marquee"><div class="scroll-text" id="marquee-text"></div></div>
+    <div id="media-container" class="layer"></div>
+    <div id="schedule-timer"></div>
+    <div id="setup-overlay">
+        <div class="setup-card">
+            <h2>📡 電視設定</h2>
+            <label>群組 ID</label>
+            <input type="text" id="groupIdInput" value="102">
+            <label>設備編號</label>
+            <select id="deviceNumInput">
+                <option value="1">1 號</option><option value="2">2 號</option>
+                <option value="3">3 號</option><option value="4">4 號</option>
+                <option value="5">5 號</option><option value="6">6 號</option>
+                <option value="7">7 號</option><option value="8">8 號</option>
+                <option value="9">9 號</option>
+            </select>
+            <button onclick="connectSystem()">啟動接收端</button>
         </div>
     </div>
-
-    <div id="app">
-        <div class="app-header">
-            <h1>📡 IMSB 廣播控制台</h1>
-            <div class="user-info">
-                <span id="currentUserDisplay">管理員</span>
-                <button onclick="openAccountModal()">👤 帳號維護</button>
-                <button onclick="doLogout()">登出</button>
-            </div>
-        </div>
-        <div class="main-grid">
-            <div>
-                <div class="card">
-                    <div class="card-title">📺 選擇目標班級 / 機上盒</div>
-                    <div class="target-actions">
-                        <button onclick="selectAllTargets(true)">✅ 全選</button>
-                        <button onclick="selectAllTargets(false)">❌ 取消全選</button>
-                    </div>
-                    <div class="target-grid" id="targetGrid"></div>
-                    <div class="form-group">
-                        <label>自訂 IP / 群組 ID (逗號分隔)</label>
-                        <input type="text" id="customTargets" placeholder="例如: 105, 172.16.102.99">
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-title">📝 文字內容</div>
-                    <div class="form-group">
-                        <label>標題（媒體模式時會顯示在跑馬燈）</label>
-                        <input type="text" id="broadcastTitle" placeholder="輸入標題">
-                    </div>
-                    <div class="form-group">
-                        <div class="row">
-                            <div><label>標題大小</label><input type="number" id="titleSize" value="120" min="10"></div>
-                            <div><label>標題顏色</label><input type="color" id="titleColor" value="#000000"></div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>內文（媒體模式時會顯示在跑馬燈，緊接在標題後面）</label>
-                        <textarea id="broadcastText" placeholder="輸入內文..."></textarea>
-                    </div>
-                    <div class="form-group">
-                        <div class="row">
-                            <div><label>內文大小</label><input type="number" id="textSize" value="80" min="10"></div>
-                            <div><label>內文顏色</label><input type="color" id="textColor" value="#000000"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-title">🎬 影片 / 圖片上傳 或 YouTube</div>
-                    <div class="media-upload">
-                        <div class="file-upload-wrapper">
-                            <input type="file" id="mediaFile" accept="image/*,video/*">
-                            <span class="file-name" id="fileName">未選擇任何檔案</span>
-                        </div>
-                        <input type="text" id="youtubeUrl" placeholder="YouTube 網址">
-                        <div class="media-url-input">
-                            <input type="text" id="mediaUrl" placeholder="🔗 貼上圖片/影片/YouTube 網址（優先使用）">
-                            <div class="media-hint">支援：圖片網址 (.jpg/.png) 、影片網址 (.mp4) 、YouTube 網址</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-title">🎮 廣播控制</div>
-                    <div class="form-group">
-                        <label>⏱ 幾分鐘後自動黑屏？</label>
-                        <input type="number" id="autoOffMin" placeholder="分鐘" min="1" value="">
-                    </div>
-                    <div class="btn-group">
-                        <button class="btn btn-success" onclick="publishBroadcast()">📢 立即發布</button>
-                        <button class="btn btn-danger" onclick="clearAllScreens()">⚫ 清除畫面</button>
-                    </div>
-                    <div style="margin-top:12px;">
-                        <div class="schedule-row">
-                            <input type="datetime-local" id="scheduleTime">
-                            <button class="btn btn-warning" onclick="addSchedule()">⏳ 加入排程</button>
-                        </div>
-                        <div style="font-size:13px; color:#64748b; margin-top:6px;" id="scheduleStatus">目前無排程</div>
-                    </div>
-                </div>
-            </div>
-
-            <div>
-                <div class="card" style="background:#f8fafc; border: none; height: 100%;">
-                    <div class="card-title">📜 歷史紀錄 <span style="font-weight:400;font-size:13px;color:#94a3b8;">(可編輯 / 關閉)</span></div>
-                    <div id="historyContainer">
-                        <div class="empty-history">尚未有任何廣播紀錄</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="account-modal">
-        <div class="account-modal-content">
-            <button class="close-modal" onclick="closeAccountModal()">&times;</button>
-            <h2>👤 帳號維護</h2>
-            <div class="account-section">
-                <h3>新增管理員</h3>
-                <div class="add-form">
-                    <input type="text" id="newAdminUser" placeholder="帳號">
-                    <input type="text" id="newAdminPass" placeholder="密碼">
-                    <input type="text" id="newAdminName" placeholder="名稱">
-                    <button onclick="addAdmin()">新增管理員</button>
-                </div>
-                <div id="adminList"></div>
-            </div>
-            <div class="account-section">
-                <h3>新增接收端（電視設備）</h3>
-                <div class="add-form">
-                    <input type="text" id="newReceiverName" placeholder="名稱（例如 101教室）">
-                    <input type="text" id="newReceiverId" placeholder="群組 ID（例如 101）">
-                    <button onclick="addReceiver()">新增接收端</button>
-                </div>
-                <div id="receiverList"></div>
-            </div>
-        </div>
-    </div>
-
     <script>
-        var STORAGE_KEY = 'imsb_accounts';
-        var currentUser = null;
+        // ============================================================
+        // 全域變數
+        // ============================================================
+        let peer;
+        let currentPlayer = null;
+        let isMediaPlaying = false;
+        let marqueeTimer = null;
+        let marqueeQueue = [];
+        let isMarqueeRunning = false;
 
-        function getAccounts() {
-            try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { admins: [], receivers: [] }; } catch (e) { return { admins: [],
-                    receivers: [] }; }
+        const standby = document.getElementById('standby-screen');
+        const officeLayer = document.getElementById('office-notice-layer');
+        const txtLayer = document.getElementById('pure-text-layer');
+        const marq = document.getElementById('marquee');
+        const marqueeText = document.getElementById('marquee-text');
+        const mediaContainer = document.getElementById('media-container');
+        const scheduleTimerDiv = document.getElementById('schedule-timer');
+
+        // ============================================================
+        // 跑馬燈控制（獨立於媒體，持續輪播）
+        // ============================================================
+        function showMarquee(text) {
+            if (!text) return;
+            marqueeText.innerText = text;
+            marq.style.display = 'block';
+            // 重新觸發動畫
+            marqueeText.style.animation = 'none';
+            setTimeout(function() {
+                marqueeText.style.animation = 'scrollMarquee 12s linear infinite';
+            }, 50);
         }
 
-        function saveAccounts(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
-
-        function initAccounts() {
-            var data = getAccounts();
-            if (data.admins.length === 0) {
-                data.admins.push({ user: 'admin', pass: 'admin', name: '系統管理員' });
-                saveAccounts(data);
-            }
-        }
-        initAccounts();
-
-        function doLogin() {
-            var user = document.getElementById('loginUser').value.trim();
-            var pass = document.getElementById('loginPass').value.trim();
-            var data = getAccounts();
-            var found = null;
-            for (var i = 0; i < data.admins.length; i++) {
-                if (data.admins[i].user === user && data.admins[i].pass === pass) { found = data.admins[i]; break; }
-            }
-            if (found) {
-                currentUser = found;
-                document.getElementById('login-overlay').style.display = 'none';
-                document.getElementById('app').style.display = 'block';
-                document.getElementById('currentUserDisplay').textContent = '👤 ' + found.name;
-                renderTargets();
-                renderHistory();
-                renderAccountLists();
-                connectPeer();
-            } else {
-                document.getElementById('loginError').style.display = 'block';
-            }
+        function hideMarquee() {
+            marq.style.display = 'none';
+            marqueeText.innerText = '';
         }
 
-        function doLogout() {
-            if (peer) { peer.destroy();
-                peer = null; }
-            currentUser = null;
-            document.getElementById('app').style.display = 'none';
-            document.getElementById('login-overlay').style.display = 'flex';
-            document.getElementById('loginError').style.display = 'none';
-        }
-
-        function openAccountModal() { document.getElementById('account-modal').classList.add('show');
-            renderAccountLists(); }
-
-        function closeAccountModal() { document.getElementById('account-modal').classList.remove('show'); }
-
-        function addAdmin() {
-            var user = document.getElementById('newAdminUser').value.trim();
-            var pass = document.getElementById('newAdminPass').value.trim();
-            var name = document.getElementById('newAdminName').value.trim();
-            if (!user || !pass || !name) { alert('請填寫完整'); return; }
-            var data = getAccounts();
-            for (var i = 0; i < data.admins.length; i++) {
-                if (data.admins[i].user === user) { alert('帳號已存在'); return; }
-            }
-            data.admins.push({ user: user, pass: pass, name: name });
-            saveAccounts(data);
-            document.getElementById('newAdminUser').value = '';
-            document.getElementById('newAdminPass').value = '';
-            document.getElementById('newAdminName').value = '';
-            renderAccountLists();
-        }
-
-        function deleteAdmin(user) {
-            if (!confirm('確定刪除管理員 ' + user + ' 嗎？')) return;
-            var data = getAccounts();
-            var newAdmins = [];
-            for (var i = 0; i < data.admins.length; i++) {
-                if (data.admins[i].user !== user) newAdmins.push(data.admins[i]);
-            }
-            data.admins = newAdmins;
-            saveAccounts(data);
-            renderAccountLists();
-        }
-
-        function addReceiver() {
-            var name = document.getElementById('newReceiverName').value.trim();
-            var id = document.getElementById('newReceiverId').value.trim();
-            if (!name || !id) { alert('請填寫完整'); return; }
-            var data = getAccounts();
-            for (var i = 0; i < data.receivers.length; i++) {
-                if (data.receivers[i].id === id) { alert('該群組 ID 已存在'); return; }
-            }
-            data.receivers.push({ name: name, id: id });
-            saveAccounts(data);
-            document.getElementById('newReceiverName').value = '';
-            document.getElementById('newReceiverId').value = '';
-            renderAccountLists();
-            renderTargets();
-        }
-
-        function deleteReceiver(id) {
-            if (!confirm('確定刪除接收端 ' + id + ' 嗎？')) return;
-            var data = getAccounts();
-            var newRec = [];
-            for (var i = 0; i < data.receivers.length; i++) {
-                if (data.receivers[i].id !== id) newRec.push(data.receivers[i]);
-            }
-            data.receivers = newRec;
-            saveAccounts(data);
-            renderAccountLists();
-            renderTargets();
-        }
-
-        function renderAccountLists() {
-            var data = getAccounts();
-            var adminHtml = '';
-            for (var i = 0; i < data.admins.length; i++) {
-                var a = data.admins[i];
-                adminHtml += '<div class="account-item"><span class="info">' + a.name + ' (' + a.user + ')</span><button class="del-btn" onclick="deleteAdmin(\'' + a.user + '\')">刪除</button></div>';
-            }
-            document.getElementById('adminList').innerHTML = adminHtml || '<div style="color:#94a3b8;font-size:13px;">尚無管理員</div>';
-            var recHtml = '';
-            for (var j = 0; j < data.receivers.length; j++) {
-                var r = data.receivers[j];
-                recHtml += '<div class="account-item"><span class="info">' + r.name + ' (' + r.id + ')</span><button class="del-btn" onclick="deleteReceiver(\'' + r.id + '\')">刪除</button></div>';
-            }
-            document.getElementById('receiverList').innerHTML = recHtml || '<div style="color:#94a3b8;font-size:13px;">尚無接收端</div>';
-        }
-
-        var selectedTargets = new Set();
-
-        function renderTargets() {
-            var data = getAccounts();
-            var grid = document.getElementById('targetGrid');
-            grid.innerHTML = '';
-            var receivers = data.receivers || [];
-            if (receivers.length === 0) {
-                grid.innerHTML = '<div style="color:#94a3b8;font-size:14px;">請先在帳號維護中新增接收端</div>';
+        // 🔥 跑馬燈輪播核心（每則顯示 10 秒，循環直到隊列清空）
+        function startMarqueeLoop() {
+            if (marqueeQueue.length === 0) {
+                isMarqueeRunning = false;
+                hideMarquee();
                 return;
             }
-            for (var i = 0; i < receivers.length; i++) {
-                var r = receivers[i];
-                var label = document.createElement('label');
-                var cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.value = r.id;
-                cb.checked = selectedTargets.has(r.id);
-                (function(cb, id) {
-                    cb.addEventListener('change', function(e) {
-                        if (e.target.checked) selectedTargets.add(id);
-                        else selectedTargets.delete(id);
-                        updateCustomInput();
-                    });
-                })(cb, r.id);
-                var span = document.createElement('span');
-                span.textContent = r.name + ' (' + r.id + ')';
-                label.appendChild(cb);
-                label.appendChild(span);
-                grid.appendChild(label);
+            isMarqueeRunning = true;
+            var text = marqueeQueue.shift();
+            showMarquee(text);
+            // 10 秒後播下一則
+            marqueeTimer = setTimeout(function() {
+                startMarqueeLoop();
+            }, 10000);
+        }
+
+        // 新增跑馬燈文字（立即加入隊列）
+        function addMarqueeText(text) {
+            if (!text) return;
+            marqueeQueue.push(text);
+            // 如果跑馬燈沒在跑，立即啟動
+            if (!isMarqueeRunning) {
+                startMarqueeLoop();
             }
+            // 如果已在跑，新文字會自動排在隊列後面
         }
 
-        function selectAllTargets(select) {
-            var cbs = document.querySelectorAll('#targetGrid input[type="checkbox"]');
-            for (var i = 0; i < cbs.length; i++) {
-                cbs[i].checked = select;
-                if (select) selectedTargets.add(cbs[i].value);
-                else selectedTargets.delete(cbs[i].value);
+        // 清空跑馬燈（換媒體時使用）
+        function clearMarquee() {
+            marqueeQueue = [];
+            if (marqueeTimer) {
+                clearTimeout(marqueeTimer);
+                marqueeTimer = null;
             }
-            updateCustomInput();
+            isMarqueeRunning = false;
+            hideMarquee();
         }
 
-        function updateCustomInput() {
-            var custom = document.getElementById('customTargets');
-            var arr = Array.from(selectedTargets);
-            custom.placeholder = arr.length > 0 ? '已選: ' + arr.join(', ') : '請勾選接收端或輸入自訂 ID';
-        }
-
-        function getTargetList() {
-            var fromCheckbox = Array.from(selectedTargets);
-            var customRaw = document.getElementById('customTargets').value.trim();
-            var fromCustom = customRaw ? customRaw.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; }) : [];
-            var combined = fromCheckbox.concat(fromCustom);
-            var unique = [];
-            for (var i = 0; i < combined.length; i++) {
-                if (unique.indexOf(combined[i]) === -1) unique.push(combined[i]);
+        // ============================================================
+        // 清空所有（回到黑屏）
+        // ============================================================
+        function goBlack() {
+            console.log('⬛ 回到黑屏');
+            if (currentPlayer) {
+                try { currentPlayer.destroy(); } catch (e) {}
+                currentPlayer = null;
             }
-            return unique.length > 0 ? unique : null;
+            isMediaPlaying = false;
+            mediaContainer.innerHTML = '';
+            mediaContainer.style.display = 'none';
+            txtLayer.style.display = 'none';
+            txtLayer.innerHTML = '';
+            scheduleTimerDiv.style.display = 'none';
+            clearMarquee();
+            standby.style.display = 'flex';
+            officeLayer.style.display = 'none';
         }
 
-        var peer = null;
-
-        function connectPeer() {
-            if (peer) { peer.destroy();
-                peer = null; }
-            peer = new Peer('imsb-admin-' + Math.floor(Math.random() * 10000));
-            peer.on('open', function() { console.log('Peer 已連線'); });
-            peer.on('error', function(err) { console.warn('Peer error:', err); });
+        // ============================================================
+        // 顯示學務處通知（結束時黑屏）
+        // ============================================================
+        function showNotice() {
+            goBlack();
+            officeLayer.style.display = 'block';
+            setTimeout(function() {
+                officeLayer.style.display = 'none';
+                goBlack();
+            }, 5000);
         }
 
-        function sendCommandToTargets(targets, data) {
-            if (!targets || targets.length === 0) {
-                alert('請至少選擇一個目標');
-                return Promise.reject('No targets');
-            }
-            var promises = [];
-            for (var i = 0; i < targets.length; i++) {
-                (function(targetId) {
-                    var p = new Promise(function(resolve, reject) {
-                        var ids = [targetId + '-1', targetId + '-2'];
-                        var resolved = false;
-                        for (var j = 0; j < ids.length; j++) {
-                            (function(id) {
-                                var conn = peer.connect(id, { reliable: true });
-                                var timeout = setTimeout(function() {
-                                    conn.close();
-                                    if (!resolved) reject(new Error('連線 ' + id + ' 超時'));
-                                }, 3000);
-                                conn.on('open', function() {
-                                    clearTimeout(timeout);
-                                    conn.send(data);
-                                    setTimeout(function() {
-                                        conn.close();
-                                        if (!resolved) {
-                                            resolved = true;
-                                            resolve(id);
-                                        }
-                                    }, 300);
-                                });
-                                conn.on('error', function(err) {
-                                    clearTimeout(timeout);
-                                    if (!resolved) {
-                                        resolved = true;
-                                        reject(err);
-                                    }
-                                });
-                            })(ids[j]);
-                        }
-                        setTimeout(function() {
-                            if (!resolved) reject(new Error('所有連線失敗'));
-                        }, 3500);
-                    });
-                    promises.push(p);
-                })(targets[i]);
-            }
-            return Promise.allSettled(promises);
-        }
-
+        // ============================================================
+        // 提取 YouTube ID
+        // ============================================================
         function extractVideoId(url) {
             if (!url) return null;
-            var match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\?]+)/);
-            if (match && match[1]) return match[1];
-            var m = url.match(/[0-9A-Za-z_-]{11}/);
-            return m ? m[0] : null;
+            var m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\?]+)/);
+            if (m && m[1]) return m[1];
+            var m2 = url.match(/[0-9A-Za-z_-]{11}/);
+            return m2 ? m2[0] : null;
         }
 
-        function publishBroadcast() {
-            var title = document.getElementById('broadcastTitle').value.trim();
-            var text = document.getElementById('broadcastText').value.trim();
-            var titleSize = document.getElementById('titleSize').value || 120;
-            var titleColor = document.getElementById('titleColor').value || '#000000';
-            var textSize = document.getElementById('textSize').value || 80;
-            var textColor = document.getElementById('textColor').value || '#000000';
+        // ============================================================
+        // 🔥 播放 YouTube（無廣告 + 播完黑屏）
+        // ============================================================
+        function playYouTube(url, title) {
+            txtLayer.style.display = 'none';
+            txtLayer.innerHTML = '';
+            standby.style.display = 'none';
 
-            var fileInput = document.getElementById('mediaFile');
-            var file = fileInput.files[0];
-            var youtubeUrl = document.getElementById('youtubeUrl').value.trim();
-            var mediaUrl = document.getElementById('mediaUrl').value.trim();
-
-            var targets = getTargetList();
-            if (!targets) { alert('請選擇目標'); return; }
-            var currentTargets = targets.slice();
-
-            var marqueeText = '';
-            if (title) marqueeText += title;
-            if (text) {
-                if (marqueeText) marqueeText += '  ';
-                marqueeText += text;
-            }
-
-            if (mediaUrl) {
-                var isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl);
-                var isVideo = /\.(mp4|webm|mov|avi)$/i.test(mediaUrl);
-                var isYouTube = mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be');
-                var mediaType = 'youtube';
-                if (isImage) mediaType = 'image';
-                else if (isVideo) mediaType = 'video';
-                var payload = { type: 'media', url: mediaUrl, mediaType: mediaType, title: marqueeText };
-                doSend(payload, currentTargets, title, text);
-                doAutoOff(currentTargets);
+            var videoId = extractVideoId(url);
+            if (!videoId) {
+                alert('無效的 YouTube 網址');
                 return;
             }
 
-            if (file) {
-                var reader = new FileReader();
-                reader.onload = function(e) {
-                    var fileType = file.type.startsWith('video') ? 'video' : 'image';
-                    var data = { type: 'file', text: marqueeText, fileType: fileType, fileData: e.target.result };
-                    doSend(data, currentTargets, title, text);
-                    doAutoOff(currentTargets);
-                };
-                reader.readAsDataURL(file);
-                return;
-            }
-
-            if (youtubeUrl) {
-                var videoId = extractVideoId(youtubeUrl);
-                if (!videoId) { alert('無效的 YouTube 網址'); return; }
-                var payload = { type: 'addVideo', url: youtubeUrl, text: marqueeText };
-                doSend(payload, currentTargets, title, text);
-                doAutoOff(currentTargets);
-                return;
-            }
-
-            var styledText = '';
+            // 清空舊跑馬燈，加入新標題
+            clearMarquee();
             if (title) {
-                styledText += '<div style="font-size:' + titleSize + 'px; color:' + titleColor + '; font-weight:bold; margin:0; padding:0;">' +
-                    title + '</div>';
+                addMarqueeText(title);
             }
-            if (text) {
-                styledText += '<div style="font-size:' + textSize + 'px; color:' + textColor + '; font-weight:bold; margin:0; padding:0;">' +
-                    text + '</div>';
-            }
-            if (!styledText) { alert('請輸入標題或內文，或貼上媒體網址'); return; }
-            var payload = { type: 'pureText', text: styledText };
-            doSend(payload, currentTargets, title, text);
-            doAutoOff(currentTargets);
-        }
 
-        function doAutoOff(targets) {
-            var autoOff = parseInt(document.getElementById('autoOffMin').value);
-            if (autoOff && autoOff > 0) {
-                setTimeout(function() {
-                    clearAllScreens(targets);
-                }, autoOff * 60 * 1000);
-            }
-        }
+            mediaContainer.style.display = 'flex';
+            mediaContainer.innerHTML = '';
+            var iframe = document.createElement('iframe');
+            // 🔥 無廣告參數：modestbranding=1, rel=0, iv_load_policy=3
+            iframe.src = 'https://www.youtube.com/embed/' + videoId +
+                '?autoplay=1&controls=1&rel=0&fs=1&enablejsapi=1&modestbranding=1&iv_load_policy=3';
+            iframe.allow = 'autoplay; fullscreen';
+            iframe.allowFullscreen = true;
+            iframe.style.width = '100%';
+            iframe.style.height = '100%';
+            iframe.style.border = 'none';
+            iframe.id = 'yt-' + Date.now();
+            mediaContainer.appendChild(iframe);
 
-        function doSend(payload, targets, title, text) {
-            var hasMedia = !!(document.getElementById('mediaFile').files[0] ||
-                document.getElementById('youtubeUrl').value.trim() ||
-                document.getElementById('mediaUrl').value.trim());
-            var mode = hasMedia ? '媒體模式' : '純文字模式';
-            saveHistory({
-                title: title || '(無標題)',
-                text: text || '',
-                targets: targets,
-                styledText: payload.text || '',
-                timestamp: new Date().toLocaleString('zh-TW'),
-                status: '已發送 (' + mode + ')'
-            });
-            sendCommandToTargets(targets, payload).then(function(results) {
-                var success = 0,
-                    failed = 0;
-                for (var i = 0; i < results.length; i++) {
-                    if (results[i].status === 'fulfilled') success++;
-                    else failed++;
-                }
-                alert('✅ 廣播已發送！成功: ' + success + ' 台, 失敗: ' + failed + ' 台');
-            }).catch(function(err) {
-                alert('發送失敗，請檢查網路');
-                console.error(err);
-            });
-        }
+            isMediaPlaying = true;
 
-        function clearAllScreens(targets) {
-            if (!targets) {
-                targets = getTargetList();
-                if (!targets) { alert('請選擇目標'); return; }
-            }
-            sendCommandToTargets(targets, { type: 'clear' }).then(function() {
-                alert('⚫ 已送出清除指令');
-            });
-        }
-
-        var scheduleTimer = null;
-
-        function addSchedule() {
-            var dateTime = document.getElementById('scheduleTime').value;
-            if (!dateTime) { alert('請選擇排程時間'); return; }
-            var now = Date.now();
-            var targetTime = new Date(dateTime).getTime();
-            if (targetTime <= now) { alert('時間必須大於現在'); return; }
-            var delayMs = targetTime - now;
-            var title = document.getElementById('broadcastTitle').value.trim() || '';
-            var text = document.getElementById('broadcastText').value.trim();
-            var mediaUrl = document.getElementById('mediaUrl').value.trim();
-            var targets = getTargetList();
-            if (!targets) { alert('請選擇目標'); return; }
-            saveHistory({
-                title: title ? '[排程] ' + title : '[排程] (無標題)',
-                text: text,
-                targets: targets,
-                styledText: text,
-                timestamp: new Date(targetTime).toLocaleString('zh-TW') + ' 預定',
-                status: '⏳ 排程中'
-            });
-            document.getElementById('scheduleStatus').textContent = '⏳ 排程設定，將於 ' + new Date(targetTime).toLocaleString('zh-TW') +
-                ' 發送';
-            if (scheduleTimer) clearTimeout(scheduleTimer);
-            scheduleTimer = setTimeout(function() {
-                var marqueeText = title;
-                if (text) marqueeText += ' ' + text;
-                var payload;
-                if (mediaUrl) {
-                    var isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl);
-                    var isVideo = /\.(mp4|webm|mov|avi)$/i.test(mediaUrl);
-                    var isYouTube = mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be');
-                    var mediaType = 'youtube';
-                    if (isImage) mediaType = 'image';
-                    else if (isVideo) mediaType = 'video';
-                    payload = { type: 'media', url: mediaUrl, mediaType: mediaType, title: marqueeText };
-                } else if (text) {
-                    var titleSize = document.getElementById('titleSize').value || 120;
-                    var textSize = document.getElementById('textSize').value || 80;
-                    var styledText = '';
-                    if (title) styledText += '<div style="font-size:' + titleSize + 'px; font-weight:bold;">' + title +
-                        '</div>';
-                    if (text) styledText += '<div style="font-size:' + textSize + 'px; font-weight:bold;">' + text +
-                        '</div>';
-                    if (!styledText) styledText = ' ';
-                    payload = { type: 'pureText', text: styledText };
-                } else {
-                    payload = { type: 'clear' };
-                }
-                sendCommandToTargets(targets, payload).then(function() {
-                    document.getElementById('scheduleStatus').textContent = '✅ 排程廣播已發送';
-                });
-            }, delayMs);
-        }
-
-        function getHistory() {
-            try { return JSON.parse(localStorage.getItem('broadcastHistory')) || []; } catch (e) { return []; }
-        }
-
-        function setHistory(h) { localStorage.setItem('broadcastHistory', JSON.stringify(h)); }
-
-        function saveHistory(item) {
-            var history = getHistory();
-            item.id = Date.now() + '_' + Math.random().toString(36).substr(2, 4);
-            history.unshift(item);
-            setHistory(history);
-            renderHistory();
-        }
-
-        function deleteHistory(id) {
-            var history = getHistory();
-            var newHistory = [];
-            for (var i = 0; i < history.length; i++) {
-                if (history[i].id !== id) newHistory.push(history[i]);
-            }
-            setHistory(newHistory);
-            renderHistory();
-        }
-
-        function closeBroadcast(id) {
-            var history = getHistory();
-            var item = null;
-            for (var i = 0; i < history.length; i++) {
-                if (history[i].id === id) { item = history[i]; break; }
-            }
-            if (!item) return;
-            if (item.targets) {
-                sendCommandToTargets(item.targets, { type: 'clear' });
-            }
-            item.status = '已關閉';
-            setHistory(history);
-            renderHistory();
-        }
-
-        function editHistory(id) {
-            var history = getHistory();
-            var item = null;
-            for (var i = 0; i < history.length; i++) {
-                if (history[i].id === id) { item = history[i]; break; }
-            }
-            if (!item) return;
-            document.getElementById('broadcastTitle').value = item.title.replace('[排程] ', '');
-            document.getElementById('broadcastText').value = item.text;
-            if (item.targets) {
-                selectedTargets.clear();
-                var cbs = document.querySelectorAll('#targetGrid input[type="checkbox"]');
-                for (var j = 0; j < cbs.length; j++) {
-                    var cb = cbs[j];
-                    var found = false;
-                    for (var k = 0; k < item.targets.length; k++) {
-                        if (item.targets[k] === cb.value) { found = true; break; }
+            if (typeof YT !== 'undefined' && YT.Player) {
+                currentPlayer = new YT.Player(iframe.id, {
+                    playerVars: {
+                        modestbranding: 1,
+                        rel: 0,
+                        iv_load_policy: 3
+                    },
+                    events: {
+                        onStateChange: function(e) {
+                            if (e.data === 0) {
+                                console.log('✅ YouTube 播完 → 學務處通知');
+                                showNotice();
+                            }
+                        },
+                        onError: function() { showNotice(); }
                     }
-                    cb.checked = found;
-                    if (found) selectedTargets.add(cb.value);
-                }
-                document.getElementById('customTargets').value = '';
-                updateCustomInput();
+                });
+            } else {
+                var wait = setInterval(function() {
+                    if (typeof YT !== 'undefined' && YT.Player) {
+                        clearInterval(wait);
+                        currentPlayer = new YT.Player(iframe.id, {
+                            playerVars: {
+                                modestbranding: 1,
+                                rel: 0,
+                                iv_load_policy: 3
+                            },
+                            events: {
+                                onStateChange: function(e) {
+                                    if (e.data === 0) { showNotice(); }
+                                },
+                                onError: function() { showNotice(); }
+                            }
+                        });
+                    }
+                }, 500);
             }
-            deleteHistory(id);
-            alert('已載入編輯內容，修改後請重新發布。');
         }
 
-        function renderHistory() {
-            var container = document.getElementById('historyContainer');
-            var history = getHistory();
-            if (history.length === 0) {
-                container.innerHTML = '<div class="empty-history">📭 尚未有任何廣播紀錄</div>';
+        // ============================================================
+        // 播放純文字（無媒體時全螢幕，有媒體時只跑跑馬燈）
+        // ============================================================
+        function playText(text) {
+            if (!text) return;
+            // 🔥 如果有媒體正在播放，文字只加入跑馬燈
+            if (isMediaPlaying) {
+                addMarqueeText(text);
                 return;
             }
-            var html = '';
-            for (var i = 0; i < history.length; i++) {
-                var item = history[i];
-                var isClosed = (item.status === '已關閉');
-                var closedClass = isClosed ? 'closed' : '';
-                var badgeClass = isClosed ? 'closed' : '';
-                var targetsStr = '';
-                if (item.targets) {
-                    for (var j = 0; j < item.targets.length; j++) {
-                        targetsStr += '<span>' + item.targets[j] + '</span>';
-                    }
-                }
-                html += '<div class="history-item ' + closedClass + '">';
-                html += '<div class="h-top"><span class="h-title">' + (item.title || '無標題') + '</span><span class="badge-status ' +
-                    badgeClass + '">' + (item.status || '已發送') + '</span></div>';
-                html += '<div class="h-meta">🕒 ' + (item.timestamp || '未知') + ' | 目標: ' + (item.targets ? item.targets.join(
-                    ', ') : '無') + '</div>';
-                html += '<div class="h-text">' + (item.text || '(空白)') + '</div>';
-                html += '<div class="h-targets">' + targetsStr + '</div>';
-                html += '<div class="h-actions">';
-                html += '<button class="btn btn-primary btn-sm" onclick="editHistory(\'' + item.id + '\')">✏️ 編輯</button>';
-                if (!isClosed) {
-                    html += '<button class="btn btn-danger btn-sm" onclick="closeBroadcast(\'' + item.id + '\')">🔇 關閉</button>';
-                }
-                html += '<button class="btn btn-outline btn-sm" onclick="deleteHistory(\'' + item.id + '\')">🗑 刪除</button>';
-                html += '</div></div>';
-            }
-            container.innerHTML = html;
+            // 沒有媒體，全螢幕顯示（白底黑字）
+            goBlack();
+            txtLayer.innerHTML = text;
+            txtLayer.style.display = 'flex';
+            txtLayer.scrollTop = 0;
         }
 
-        renderTargets();
-        renderHistory();
+        // ============================================================
+        // 播放圖片（媒體模式）
+        // ============================================================
+        function playImage(dataUrl, title) {
+            txtLayer.style.display = 'none';
+            txtLayer.innerHTML = '';
+            standby.style.display = 'none';
 
-        window.doLogin = doLogin;
-        window.doLogout = doLogout;
-        window.openAccountModal = openAccountModal;
-        window.closeAccountModal = closeAccountModal;
-        window.addAdmin = addAdmin;
-        window.deleteAdmin = deleteAdmin;
-        window.addReceiver = addReceiver;
-        window.deleteReceiver = deleteReceiver;
-        window.selectAllTargets = selectAllTargets;
-        window.publishBroadcast = publishBroadcast;
-        window.clearAllScreens = clearAllScreens;
-        window.addSchedule = addSchedule;
-        window.editHistory = editHistory;
-        window.deleteHistory = deleteHistory;
-        window.closeBroadcast = closeBroadcast;
-        window.sendCommandToTargets = sendCommandToTargets;
+            clearMarquee();
+            if (title) {
+                addMarqueeText(title);
+            }
 
-        console.log('✅ IMSB 控制台已載入');
+            var img = document.createElement('img');
+            img.src = dataUrl;
+            mediaContainer.style.display = 'flex';
+            mediaContainer.innerHTML = '';
+            mediaContainer.appendChild(img);
+            isMediaPlaying = true;
+        }
+
+        // ============================================================
+        // 播放影片檔案（媒體模式）
+        // ============================================================
+        function playVideoFile(dataUrl, title) {
+            txtLayer.style.display = 'none';
+            txtLayer.innerHTML = '';
+            standby.style.display = 'none';
+
+            clearMarquee();
+            if (title) {
+                addMarqueeText(title);
+            }
+
+            var video = document.createElement('video');
+            video.src = dataUrl;
+            video.controls = true;
+            video.autoplay = true;
+            video.playsInline = true;
+            video.onended = function() {
+                showNotice();
+            };
+            mediaContainer.style.display = 'flex';
+            mediaContainer.innerHTML = '';
+            mediaContainer.appendChild(video);
+            isMediaPlaying = true;
+            video.play().catch(function() {});
+        }
+
+        // ============================================================
+        // 接收指令（多控制端即時顯示）
+        // ============================================================
+        function listenControls() {
+            peer.on('connection', function(conn) {
+                conn.on('data', function(data) {
+                    console.log('📨 收到指令:', data.type);
+
+                    if (data.type === 'clear') {
+                        showNotice();
+                        return;
+                    }
+
+                    // YouTube
+                    if (data.type === 'addVideo' || data.type === 'media') {
+                        var url = data.url || '';
+                        var title = data.title || data.text || '';
+                        if (url) {
+                            playYouTube(url, title);
+                        }
+                        return;
+                    }
+
+                    // 純文字（有媒體時變跑馬燈，無媒體時全螢幕）
+                    if (data.type === 'pureText') {
+                        playText(data.text || '');
+                        return;
+                    }
+
+                    // 跑馬燈（強制顯示在跑馬燈）
+                    if (data.type === 'marquee') {
+                        addMarqueeText(data.text || '');
+                        return;
+                    }
+
+                    // 圖片檔案
+                    if (data.type === 'file' && data.fileType === 'image') {
+                        playImage(data.fileData, data.text);
+                        return;
+                    }
+
+                    // 影片檔案
+                    if (data.type === 'file' && data.fileType === 'video') {
+                        playVideoFile(data.fileData, data.text);
+                        return;
+                    }
+                });
+            });
+        }
+
+        // ============================================================
+        // 連線
+        // ============================================================
+        function connectSystem() {
+            var groupId = document.getElementById('groupIdInput').value.trim();
+            var deviceNum = document.getElementById('deviceNumInput').value;
+            if (!groupId) { alert('請輸入群組 ID'); return; }
+            var peerId = groupId + '-' + deviceNum;
+            peer = new Peer(peerId, { debug: 2 });
+            peer.on('open', function() {
+                document.getElementById('setup-overlay').style.display = 'none';
+                listenControls();
+                console.log('✅ 電視端已連線，Peer ID:', peerId);
+            });
+            peer.on('error', function(err) {
+                console.error(err);
+                alert('連線失敗，請確認群組 ID 是否重複。');
+            });
+            peer.on('disconnected', function() {
+                peer.reconnect();
+            });
+        }
+
+        window.onYouTubeIframeAPIReady = function() {
+            console.log('🎬 YouTube API 已就緒');
+        };
     </script>
 </body>
 </html>
