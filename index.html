@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMSB 校園有聲廣播整合控制系統</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+            background: #f0f4f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: #ffffff;
+            border-radius: 40px;
+            padding: 50px 40px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+        }
+        .logo {
+            font-size: 4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #2563eb, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            font-size: 1.3rem;
+            color: #475569;
+            margin-bottom: 30px;
+            font-weight: 500;
+        }
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 18px 24px;
+            border-radius: 60px;
+            font-size: 1.3rem;
+            font-weight: 700;
+            text-decoration: none;
+            color: #ffffff;
+            transition: all 0.2s;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+        .btn-admin {
+            background: linear-gradient(145deg, #dc2626, #b91c1c);
+            box-shadow: 0 8px 24px rgba(220, 38, 38, 0.25);
+        }
+        .btn-admin:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(220, 38, 38, 0.35);
+        }
+        .btn-tv {
+            background: linear-gradient(145deg, #2563eb, #1d4ed8);
+            box-shadow: 0 8px 24px rgba(37, 99, 235, 0.25);
+        }
+        .btn-tv:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(37, 99, 235, 0.35);
+        }
+        .btn-icon {
+            font-size: 1.8rem;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+        .footer a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 30px 20px;
+            }
+            .logo {
+                font-size: 3rem;
+            }
+            .btn {
+                font-size: 1.1rem;
+                padding: 14px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">IMSB</div>
+        <div class="subtitle">校園有聲廣播整合控制系統</div>
+
+        <div class="btn-group">
+            <a href="admin.html" class="btn btn-admin">
+                <span class="btn-icon">📱</span> 進入廣播端
+            </a>
+            <a href="tv.html" class="btn btn-tv">
+                <span class="btn-icon">📺</span> 進入電視端
+            </a>
+        </div>
+
+        <div class="footer">
+            ⚡ 請確保所有裝置在同一網路環境下<br>
+            系統版本 2.0
+        </div>
+    </div>
+</body>
+</html>
