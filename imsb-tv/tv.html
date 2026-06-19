@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMSB 電視接收端</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+        }
+        .layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: none;
+            z-index: 10;
+            object-fit: contain;
+        }
+        #standby-screen { background: #000; z-index: 5; display: flex; }
+        #office-notice-layer {
+            background: url('學務處通知 (1).jpg') no-repeat center center;
+            background-size: contain;
+            z-index: 1000;
+        }
+        /* 純文字層（僅在無媒體時使用） */
+        #pure-text-layer {
+            z-index: 110;
+            background: #ffffff;
+            color: #000000;
+            padding: 20px;
+            overflow-y: auto;
+            display: none;
+            justify-content: flex-start;
+            align-items: flex-start;
+            text-align: left;
+            line-height: 1.4;
+            font-weight: bold;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+            box-sizing: border-box;
+            font-size: 4rem;
+        }
+        #pure-text-layer>* {
+            font-weight: bold;
+            margin: 0;
+            padding: 0;
+            display: block;
+            width: 100%;
+        }
+        /* 跑馬燈（永遠在最上層，獨立於媒體） */
+        #marquee {
+            position: absolute;
+            top: 30px;
+            left: 0;
+            width: 100%;
+            color: #facc15;
+            font-size: 4rem;
+            font-weight: 900;
+            z-index: 200;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            white-space: nowrap;
+            overflow: hidden;
+            display: none;
+            pointer-events: none;
+        }
+        .scroll-text {
+            display: inline-block;
+            padding-left: 100%;
+            animation: scrollMarquee 12s linear infinite;
+        }
+        @keyframes scrollMarquee {
+            from { transform: translateX(0); }
+            to { transform: translateX(-100%); }
+        }
+        /* 媒體容器（影片/圖片/YouTube） */
+        #media-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10;
+            background: #000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        #media-container img,
+        #media-container video,
+        #media-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            object-fit: contain;
+        }
+        #media-container iframe { object-fit: fill; }
+        #schedule-timer {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            background: rgba(0,0,0,0.8);
+            padding: 6px 18px;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            color: #f59e0b;
+            z-index: 200;
+            display: none;
+            border: 1px solid #f59e0b;
+        }
+        #setup-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(6px);
+        }
+        .setup-card {
+            background: #1e293b;
+            padding: 35px 30px;
+            border-radius: 28px;
+            text-align: center;
+            width: 340px;
+            border: 1px solid #334155;
+        }
+        .setup-card h2 { font-size: 1.8rem; color: #f1f5f9; margin-bottom: 20px; }
+        .setup-card label { display: block; color: #94a3b8; margin: 12px 0 4px; }
+        .setup-card input, .setup-card select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #475569;
+            border-radius: 14px;
+            background: #0f172a;
+            color: #f1f5f9;
+            font-size: 1.1rem;
+            outline: none;
+        }
+        .setup-card input:focus { border-color: #3b82f6; }
+        .setup-card button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 40px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: white;
+            background: linear-gradient(145deg, #2563eb, #1d4ed8);
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .setup-card button:hover { transform: scale(1.02); }
+        @media (max-width: 768px) {
+            #pure-text-layer { font-size: 2.5rem; padding: 15px; }
+            #marquee { font-size: 2.5rem; top: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="standby-screen" class="layer" style="display:flex;"></div>
+    <div id="office-notice-layer" class="layer"></div>
+    <div id="pure-text-layer" class="layer"></div>
+    <div id="marquee"><div class="scroll-text" id="marquee-text"></div></div>
+    <div id="media-container" class="layer"></div>
+    <div id="schedule-timer"></div>
+    <div id="setup-overlay">
+        <div class="setup-card">
+            <h2>📡 電視設定</h2>
+            <label>群組 ID</label>
+            <input type="text" id="groupIdInput" value="102">
+            <label>設備編號</label>
+            <select id="deviceNumInput">
+                <option value="1">1 號</option><option value="2">2 號</option>
+                <option value="3">3 號</option><option value="4">4 號</option>
+                <option value="5">5 號</option><option value="6">6 號</option>
+                <option value="7">7 號</option><option value="8">8 號</option>
+                <option value="9">9 號</option>
+            </select>
+            <button onclick="connectSystem()">啟動接收端</button>
+        </div>
+    </div>
+    <script>
+        // ============================================================
+        // 全域變數
+        // ============================================================
+        let peer;
+        let currentPlayer = null;
+        let isMediaPlaying = false;      // 是否有媒體正在播放
+        let marqueeTimer = null;         // 跑馬燈顯示計時器
+        let marqueeQueue = [];           // 跑馬燈文字隊列（多則輪播）
+
+        const standby = document.getElementById('standby-screen');
+        const officeLayer = document.getElementById('office-notice-layer');
+        const txtLayer = document.getElementById('pure-text-layer');
+        const marq = document.getElementById('marquee');
+        const marqueeText = document.getElementById('marquee-text');
+        const mediaContainer = document.getElementById('media-container');
+        const scheduleTimerDiv = document.getElementById('schedule-timer');
+
+        // ============================================================
+        // 跑馬燈控制（獨立於媒體）
+        // ============================================================
+        function showMarquee(text) {
+            if (!text) return;
+            marqueeText.innerText = text;
+            marq.style.display = 'block';
+            // 重新觸發動畫
+            marqueeText.style.animation = 'none';
+            setTimeout(function() {
+                marqueeText.style.animation = 'scrollMarquee 12s linear infinite';
+            }, 50);
+        }
+
+        function hideMarquee() {
+            marq.style.display = 'none';
+            marqueeText.innerText = '';
+            if (marqueeTimer) {
+                clearTimeout(marqueeTimer);
+                marqueeTimer = null;
+            }
+        }
+
+        // 跑馬燈輪播（每則顯示 10 秒）
+        function startMarqueeQueue() {
+            if (marqueeQueue.length === 0) {
+                hideMarquee();
+                return;
+            }
+            var text = marqueeQueue.shift();
+            showMarquee(text);
+            marqueeTimer = setTimeout(function() {
+                startMarqueeQueue();
+            }, 10000);
+        }
+
+        function addMarqueeText(text) {
+            if (!text) return;
+            marqueeQueue.push(text);
+            // 如果跑馬燈目前沒在顯示，立即開始
+            if (marq.style.display === 'none') {
+                startMarqueeQueue();
+            }
+        }
+
+        function clearMarquee() {
+            marqueeQueue = [];
+            if (marqueeTimer) {
+                clearTimeout(marqueeTimer);
+                marqueeTimer = null;
+            }
+            hideMarquee();
+        }
+
+        // ============================================================
+        // 清空所有（回到黑屏）
+        // ============================================================
+        function goBlack() {
+            console.log('⬛ 回到黑屏');
+            if (currentPlayer) {
+                try { currentPlayer.destroy(); } catch (e) {}
+                currentPlayer = null;
+            }
+            isMediaPlaying = false;
+            mediaContainer.innerHTML = '';
+            mediaContainer.style.display = 'none';
+            txtLayer.style.display = 'none';
+            txtLayer.innerHTML = '';
+            scheduleTimerDiv.style.display = 'none';
+            clearMarquee();
+            standby.style.display = 'flex';
+            officeLayer.style.display = 'none';
+        }
+
+        // ============================================================
+        // 顯示學務處通知（結束時黑屏）
+        // ============================================================
+        function showNotice() {
+            goBlack();
+            officeLayer.style.display = 'block';
+            setTimeout(function() {
+                officeLayer.style.display = 'none';
+                goBlack();
+            }, 5000);
+        }
+
+        // ============================================================
+        // 提取 YouTube ID
+        // ============================================================
+        function extractVideoId(url) {
+            if (!url) return null;
+            var m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\?]+)/);
+            if (m && m[1]) return m[1];
+            var m2 = url.match(/[0-9A-Za-z_-]{11}/);
+            return m2 ? m2[0] : null;
+        }
+
+        // ============================================================
+        // 播放 YouTube（媒體播放中，跑馬燈獨立）
+        // ============================================================
+        function playYouTube(url, title) {
+            // 清除純文字層，但保留跑馬燈獨立
+            txtLayer.style.display = 'none';
+            txtLayer.innerHTML = '';
+            standby.style.display = 'none';
+
+            var videoId = extractVideoId(url);
+            if (!videoId) {
+                alert('無效的 YouTube 網址');
+                return;
+            }
+
+            // 如果有標題，加入跑馬燈（不蓋掉媒體）
+            if (title) {
+                addMarqueeText(title);
+            }
+
+            mediaContainer.style.display = 'flex';
+            mediaContainer.innerHTML = '';
+            var iframe = document.createElement('iframe');
+            iframe.src = 'https://www.youtube.com/embed/' + videoId +
+                '?autoplay=1&controls=1&rel=0&fs=1&enablejsapi=1';
+            iframe.allow = 'autoplay; fullscreen';
+            iframe.allowFullscreen = true;
+            iframe.style.width = '100%';
+            iframe.style.height = '100%';
+            iframe.style.border = 'none';
+            iframe.id = 'yt-' + Date.now();
+            mediaContainer.appendChild(iframe);
+
+            isMediaPlaying = true;
+
+            if (typeof YT !== 'undefined' && YT.Player) {
+                currentPlayer = new YT.Player(iframe.id, {
+                    events: {
+                        onStateChange: function(e) {
+                            if (e.data === 0) {
+                                console.log('✅ YouTube 播完 → 學務處通知');
+                                showNotice();
+                            }
+                        },
+                        onError: function() { showNotice(); }
+                    }
+                });
+            } else {
+                var wait = setInterval(function() {
+                    if (typeof YT !== 'undefined' && YT.Player) {
+                        clearInterval(wait);
+                        currentPlayer = new YT.Player(iframe.id, {
+                            events: {
+                                onStateChange: function(e) {
+                                    if (e.data === 0) { showNotice(); }
+                                },
+                                onError: function() { showNotice(); }
+                            }
+                        });
+                    }
+                }, 500);
+            }
+        }
+
+        // ============================================================
+        // 播放純文字（無媒體時才用）
+        // ============================================================
+        function playText(text) {
+            if (!text) return;
+            // 如果有媒體正在播放，文字只加入跑馬燈
+            if (isMediaPlaying) {
+                addMarqueeText(text);
+                return;
+            }
+            // 沒有媒體，全螢幕顯示
+            goBlack();
+            txtLayer.innerHTML = text;
+            txtLayer.style.display = 'flex';
+            txtLayer.scrollTop = 0;
+        }
+
+        // ============================================================
+        // 播放圖片（媒體模式）
+        // ============================================================
+        function playImage(dataUrl, title) {
+            txtLayer.style.display = 'none';
+            txtLayer.innerHTML = '';
+            standby.style.display = 'none';
+
+            if (title) {
+                addMarqueeText(title);
+            }
+
+            var img = document.createElement('img');
+            img.src = dataUrl;
+            mediaContainer.style.display = 'flex';
+            mediaContainer.innerHTML = '';
+            mediaContainer.appendChild(img);
+            isMediaPlaying = true;
+        }
+
+        // ============================================================
+        // 播放影片檔案（媒體模式）
+        // ============================================================
+        function playVideoFile(dataUrl, title) {
+            txtLayer.style.display = 'none';
+            txtLayer.innerHTML = '';
+            standby.style.display = 'none';
+
+            if (title) {
+                addMarqueeText(title);
+            }
+
+            var video = document.createElement('video');
+            video.src = dataUrl;
+            video.controls = true;
+            video.autoplay = true;
+            video.playsInline = true;
+            video.onended = function() {
+                showNotice();
+            };
+            mediaContainer.style.display = 'flex';
+            mediaContainer.innerHTML = '';
+            mediaContainer.appendChild(video);
+            isMediaPlaying = true;
+            video.play().catch(function() {});
+        }
+
+        // ============================================================
+        // 接收指令（多控制端即時顯示）
+        // ============================================================
+        function listenControls() {
+            peer.on('connection', function(conn) {
+                conn.on('data', function(data) {
+                    console.log('📨 收到指令:', data.type);
+
+                    // 清除指令 → 黑屏
+                    if (data.type === 'clear') {
+                        showNotice();
+                        return;
+                    }
+
+                    // YouTube
+                    if (data.type === 'addVideo' || data.type === 'media') {
+                        var url = data.url || '';
+                        var title = data.title || data.text || '';
+                        if (url) {
+                            // 先清空跑馬燈隊列（新媒體取代舊的跑馬燈）
+                            clearMarquee();
+                            playYouTube(url, title);
+                        }
+                        return;
+                    }
+
+                    // 純文字（有媒體時變跑馬燈，無媒體時全螢幕）
+                    if (data.type === 'pureText') {
+                        playText(data.text || '');
+                        return;
+                    }
+
+                    // 跑馬燈（強制顯示在跑馬燈）
+                    if (data.type === 'marquee') {
+                        addMarqueeText(data.text || '');
+                        return;
+                    }
+
+                    // 圖片檔案（媒體模式）
+                    if (data.type === 'file' && data.fileType === 'image') {
+                        clearMarquee();
+                        playImage(data.fileData, data.text);
+                        return;
+                    }
+
+                    // 影片檔案（媒體模式）
+                    if (data.type === 'file' && data.fileType === 'video') {
+                        clearMarquee();
+                        playVideoFile(data.fileData, data.text);
+                        return;
+                    }
+                });
+            });
+        }
+
+        // ============================================================
+        // 連線
+        // ============================================================
+        function connectSystem() {
+            var groupId = document.getElementById('groupIdInput').value.trim();
+            var deviceNum = document.getElementById('deviceNumInput').value;
+            if (!groupId) { alert('請輸入群組 ID'); return; }
+            var peerId = groupId + '-' + deviceNum;
+            peer = new Peer(peerId, { debug: 2 });
+            peer.on('open', function() {
+                document.getElementById('setup-overlay').style.display = 'none';
+                listenControls();
+                console.log('✅ 電視端已連線，Peer ID:', peerId);
+            });
+            peer.on('error', function(err) {
+                console.error(err);
+                alert('連線失敗，請確認群組 ID 是否重複。');
+            });
+            peer.on('disconnected', function() {
+                peer.reconnect();
+            });
+        }
+
+        window.onYouTubeIframeAPIReady = function() {
+            console.log('🎬 YouTube API 已就緒');
+        };
+    </script>
+</body>
+</html>
